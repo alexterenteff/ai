@@ -1,25 +1,26 @@
 import os
 import sys
 import requests
+import json
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
 def get_news_from_deepseek():
-    """Получает свежие новости об ИИ через OpenRouter."""
+    """Получает свежие новости об ИИ через OpenRouter, используя :online"""
     
     if not OPENROUTER_API_KEY:
-        print("❌ OPENROUTER_API_KEY не найден")
+        print("❌ OPENROUTER_API_KEY не найден в секретах!")
         return None
 
-    # 1. Используем стабильную бесплатную модель Google Gemini
-    model_name = "google/gemini-2.0-flash-exp:free"
+    # 🔑 Самое важное изменение: добавляем ":online" к модели.
+    # Это заставит OpenRouter искать в интернете перед ответом [citation:10].
+    model_name_with_search = "deepseek/deepseek-chat:online"
     
-    # 2. Улучшенный промпт, явно требующий поиска в интернете
+    # Улучшенный промпт: теперь он просит обобщить результаты поиска.
     prompt = """Ты — редактор новостного канала об искусственном интеллекте.
-Твоя задача — найти 5 САМЫХ СВЕЖИХ (за последние 24 часа) и важных мировых новостей об ИИ и нейросетях.
-ОБЯЗАТЕЛЬНО используй инструмент 'web_search' в интернете, чтобы найти актуальную информацию.
+Проанализируй результаты поиска и составь сводку из 5 САМЫХ СВЕЖИХ (за последние 24 часа) и важных мировых новостей об ИИ и нейросетях.
 Если поиск не дал результатов, так и напиши.
 
 Для каждой новости строго соблюдай следующий формат:
@@ -31,31 +32,31 @@ def get_news_from_deepseek():
 В конце добавь строку: 📱 Подпишись: @tAiT_plus
 
 Отвечай строго на русском языке. Используй эмодзи."""
-
+    
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://t.me/tAiT_plus",
+        "HTTP-Referer": "https://t.me/tAiT_plus", 
         "X-Title": "tAiT Plus Bot"
     }
 
     payload = {
-        "model": model_name,
+        "model": model_name_with_search, # <-- Используем модель с ":online"
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 2000,
-        "temperature": 0.7# Ниже среднего для более фактологичных ответов
+        "temperature": 0.7
     }
     
     try:
-        print(f"🔍 Запрос к модели: {model_name}")
+        print(f"🔍 Запрос к модели: {model_name_with_search}")
         response = requests.post(url, headers=headers, json=payload, timeout=60)
         
         if response.status_code == 200:
             result = response.json()
             # Извлекаем текст ответа
             message_content = result['choices'][0]['message']['content']
-            print("✅ Модель успешно ответила")
+            print("✅ Модель успешно ответила, поиск должен был быть выполнен.")
             return message_content
         else:
             print(f"❌ Ошибка API: {response.status_code}")
@@ -75,7 +76,6 @@ def send_to_telegram(message):
     payload = {
         "chat_id": CHANNEL_ID,
         "text": message,
-        # КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: убираем parse_mode, чтобы избежать ошибок с форматированием
         "disable_web_page_preview": True
     }
     
@@ -92,7 +92,7 @@ def send_to_telegram(message):
         return False
 
 def main():
-    print("🚀 Запуск обновлённого бота tAiT Plus...")
+    print("🚀 Запуск обновлённого бота tAiT Plus с :online...")
     print(f"📡 Канал: {CHANNEL_ID}")
     
     if not BOT_TOKEN or not CHANNEL_ID or not OPENROUTER_API_KEY:
